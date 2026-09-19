@@ -3,6 +3,7 @@ package frictionax
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -154,15 +155,20 @@ func detectPathBucket() string {
 	return pathBucketOther
 }
 
+// isGitRepo reports whether dir or any of its ancestors is a git working tree.
+//
+// The walk is built on filepath, not on string slicing: `strings.LastIndex(dir,
+// "/")` is -1 for any path without a forward slash, which is every path on
+// Windows — os.Getwd() returns `C:\Users\me\src` — so the parent slice panicked
+// with "slice bounds out of range [:-1]" before a single ancestor was examined.
 func isGitRepo(dir string) bool {
 	for {
-		gitPath := dir + "/.git"
-		if info, err := os.Stat(gitPath); err == nil && info.IsDir() {
+		if info, err := os.Stat(filepath.Join(dir, ".git")); err == nil && info.IsDir() {
 			return true
 		}
 
-		parent := dir[:strings.LastIndex(dir, "/")]
-		if parent == "" || parent == dir {
+		parent := filepath.Dir(dir)
+		if parent == dir {
 			break
 		}
 		dir = parent

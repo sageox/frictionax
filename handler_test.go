@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -278,6 +279,67 @@ func TestDetectActor(t *testing.T) {
 			if tt.wantAgentType != "" && agentType != tt.wantAgentType {
 				t.Errorf("agent type = %q, want %q", agentType, tt.wantAgentType)
 			}
+		})
+	}
+}
+
+// TestIsGitRepo covers the ancestor walk. Every path here is absolute, so it is
+// the separator-free shapes in the test below that carry the regression.
+func TestIsGitRepo(t *testing.T) {
+	root := t.TempDir()
+	for _, dir := range []string{
+		filepath.Join(root, "repo", ".git"),
+		filepath.Join(root, "repo", "a", "b"),
+		filepath.Join(root, "plain", "a"),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(%q): %v", dir, err)
+		}
+	}
+
+	tests := []struct {
+		name string
+		dir  string
+		want bool
+	}{
+		{"repo root", filepath.Join(root, "repo"), true},
+		{"nested below the repo root", filepath.Join(root, "repo", "a", "b"), true},
+		{"nothing above", filepath.Join(root, "plain", "a"), false},
+		{"trailing separator", filepath.Join(root, "repo") + string(filepath.Separator), true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isGitRepo(tt.dir); got != tt.want {
+				t.Errorf("isGitRepo(%q) = %v, want %v", tt.dir, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestIsGitRepo_PathsWithoutForwardSlash is the regression test for the panic
+// that made every friction event crash on Windows: the walk sliced the parent
+// with `dir[:strings.LastIndex(dir, "/")]`, and LastIndex is -1 for a path with
+// no forward slash. That is every path on Windows — os.Getwd() returns
+// `C:\Users\me\src` — so the slice panicked with "slice bounds out of range
+// [:-1]" before an ancestor was ever examined, and because friction runs on the
+// usage-error path, a mistyped command got a stack trace instead of the
+// suggestion it was about to receive.
+//
+// Both shapes reproduce on any OS, which is what makes this test worth having
+// here: the repository's workflows are `.disabled`, so nothing runs on Windows.
+func TestIsGitRepo_PathsWithoutForwardSlash(t *testing.T) {
+	for _, dir := range []string{
+		"child",           // a bare relative name
+		`C:\Users\me\src`, // the shape os.Getwd() returns on Windows
+		`\\server\share\repo`,
+	} {
+		t.Run(dir, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("isGitRepo(%q) panicked: %v", dir, r)
+				}
+			}()
+			isGitRepo(dir)
 		})
 	}
 }
