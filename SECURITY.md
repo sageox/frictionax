@@ -6,7 +6,7 @@
 **Please report security vulnerabilities privately — never open a public issue.**
 Use this repository's private vulnerability reporting: **Security → "Report a
 vulnerability"** on GitHub. (If that option is not visible, a maintainer must
-enable *Private vulnerability reporting* in repo settings.)
+enable *Private vulnerability reporting* in repo settings — until then, email **security@sageox.ai**.)
 
 frictionax is a public Go CLI for CLI friction detection — flag issues in argument handling, telemetry, or the released binaries.
 
