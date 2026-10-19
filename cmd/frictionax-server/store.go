@@ -88,7 +88,7 @@ func (s *Store) InsertEvents(events []frictionax.FrictionEvent) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.Prepare(`
 		INSERT INTO friction_events (id, ts, kind, command, subcommand, actor, agent_type, path_bucket, input, error_msg, suggestion)

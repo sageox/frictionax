@@ -56,14 +56,6 @@ const (
 	SuggestionLevenshtein SuggestionType = "levenshtein"
 )
 
-// executeAction indicates what action to take with a suggestion (internal).
-type executeAction string
-
-const (
-	actionSuggestOnly executeAction = "suggest"
-	actionAutoExecute executeAction = "auto_execute"
-)
-
 // FrictionEvent captures a CLI usage failure for analytics.
 // Events are privacy-preserving: inputs are redacted, errors are truncated.
 //
