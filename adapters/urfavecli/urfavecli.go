@@ -8,8 +8,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/sageox/frictionax"
 	"github.com/urfave/cli/v2"
+
+	"github.com/sageox/frictionax"
 )
 
 // UrfaveAdapter implements frictionax.CLIAdapter for urfave/cli/v2 apps.

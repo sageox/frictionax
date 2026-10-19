@@ -389,7 +389,6 @@ func TestRingBuffer_CustomKeyFunc(t *testing.T) {
 	}
 }
 
-
 func TestRingBuffer_Refill_Basic(t *testing.T) {
 	rb := New(5, func(s string) string { return s })
 

@@ -4,8 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/sageox/frictionax"
 	"github.com/urfave/cli/v2"
+
+	"github.com/sageox/frictionax"
 )
 
 func newTestApp() *cli.App {

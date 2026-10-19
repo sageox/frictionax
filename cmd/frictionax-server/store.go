@@ -136,11 +136,11 @@ func (s *Store) EventCount() (int, error) {
 
 // SummaryResult holds aggregated friction data.
 type SummaryResult struct {
-	TotalEvents int               `json:"total_events"`
-	ByKind      map[string]int    `json:"by_kind"`
-	ByActor     map[string]int    `json:"by_actor"`
-	TopInputs   []TopInput        `json:"top_inputs"`
-	Since       string            `json:"since"`
+	TotalEvents int            `json:"total_events"`
+	ByKind      map[string]int `json:"by_kind"`
+	ByActor     map[string]int `json:"by_actor"`
+	TopInputs   []TopInput     `json:"top_inputs"`
+	Since       string         `json:"since"`
 }
 
 // TopInput represents a frequently seen friction input.

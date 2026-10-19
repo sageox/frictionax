@@ -4,8 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/sageox/frictionax"
 	spfcobra "github.com/spf13/cobra"
+
+	"github.com/sageox/frictionax"
 )
 
 func buildTestCommandTree() *spfcobra.Command {

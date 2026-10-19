@@ -11,10 +11,11 @@ import (
 	"testing"
 	"time"
 
+	spfcobra "github.com/spf13/cobra"
+
 	"github.com/sageox/frictionax"
 	cobradapter "github.com/sageox/frictionax/adapters/cobra"
 	"github.com/sageox/frictionax/internal/ringbuffer"
-	spfcobra "github.com/spf13/cobra"
 )
 
 func buildTestCLI() *spfcobra.Command {

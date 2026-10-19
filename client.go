@@ -202,4 +202,3 @@ func (c *client) Reset() {
 	c.sampleRate = 1.0
 	c.retryAfter = time.Time{}
 }
-
