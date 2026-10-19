@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -334,6 +336,12 @@ func TestIsGitRepo_PathsWithoutForwardSlash(t *testing.T) {
 		`\\server\share\repo`,
 	} {
 		t.Run(dir, func(t *testing.T) {
+			// On Windows a UNC path is a network share: stat-ing it makes the
+			// OS look up and connect to a host named "server", which may answer
+			// with whatever is on the LAN. Elsewhere it is a plain relative name.
+			if runtime.GOOS == "windows" && strings.HasPrefix(dir, `\\`) {
+				t.Skip("UNC path would reach the network on Windows")
+			}
 			defer func() {
 				if r := recover(); r != nil {
 					t.Errorf("isGitRepo(%q) panicked: %v", dir, r)
