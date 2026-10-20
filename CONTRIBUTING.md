@@ -10,7 +10,7 @@ cd frictionax
 make check   # fmt + lint + test
 ```
 
-**Prerequisites:** Go 1.22+, [golangci-lint](https://golangci-lint.run), [gotestsum](https://github.com/gotestyourself/gotestsum)
+**Prerequisites:** Go 1.24+, [golangci-lint](https://golangci-lint.run) v2, [gotestsum](https://github.com/gotestyourself/gotestsum)
 
 ## Submitting a PR
 

@@ -8,8 +8,9 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/sageox/frictionax"
 	"github.com/spf13/cobra"
+
+	"github.com/sageox/frictionax"
 )
 
 var (

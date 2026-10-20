@@ -4,13 +4,6 @@ import (
 	"testing"
 )
 
-// passthruRedactor implements Redactor for testing (returns input unchanged).
-type passthruRedactor struct{}
-
-func (passthruRedactor) Redact(input string) string {
-	return input
-}
-
 func TestRedactInput(t *testing.T) {
 	tests := []struct {
 		name     string

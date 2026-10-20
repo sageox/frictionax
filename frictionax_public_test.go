@@ -560,8 +560,8 @@ func TestDetectPathBucket(t *testing.T) {
 	// we're running inside a git repo, so should get "repo"
 	bucket := detectPathBucket()
 	validBuckets := map[string]bool{
-		pathBucketHome: true,
-		pathBucketRepo: true,
+		pathBucketHome:  true,
+		pathBucketRepo:  true,
 		pathBucketOther: true,
 	}
 	if !validBuckets[bucket] {

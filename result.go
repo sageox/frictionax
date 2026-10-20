@@ -124,10 +124,10 @@ func (r *Result) emitText() {
 
 // Stats holds telemetry statistics for status display.
 type Stats struct {
-	Enabled        bool   `json:"enabled"`
-	BufferCount    int    `json:"buffer_count"`
-	BufferSize     int    `json:"buffer_size"`
+	Enabled        bool    `json:"enabled"`
+	BufferCount    int     `json:"buffer_count"`
+	BufferSize     int     `json:"buffer_size"`
 	SampleRate     float64 `json:"sample_rate"`
-	RetryAfter     any    `json:"retry_after"`
-	CatalogVersion string `json:"catalog_version,omitempty"`
+	RetryAfter     any     `json:"retry_after"`
+	CatalogVersion string  `json:"catalog_version,omitempty"`
 }

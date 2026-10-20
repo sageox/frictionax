@@ -296,7 +296,7 @@ func TestClient_UpdateFromHeaders(t *testing.T) {
 			name: "both headers",
 			headers: map[string]string{
 				"X-Friction-Sample-Rate": "0.5",
-				"Retry-After":           "60",
+				"Retry-After":            "60",
 			},
 			wantSampleRate: 0.5,
 			wantRetryAfter: true,

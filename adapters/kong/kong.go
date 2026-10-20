@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/sageox/frictionax"
 )
 
