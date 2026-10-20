@@ -8,9 +8,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/sageox/frictionax"
 	spfcobra "github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+
+	"github.com/sageox/frictionax"
 )
 
 // CobraAdapter implements frictionax.CLIAdapter for spf13/cobra command trees.

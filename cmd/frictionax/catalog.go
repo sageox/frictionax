@@ -8,8 +8,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/sageox/frictionax"
 	"github.com/spf13/cobra"
+
+	"github.com/sageox/frictionax"
 )
 
 var catalogCmd = &cobra.Command{

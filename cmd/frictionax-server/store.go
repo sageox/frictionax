@@ -88,7 +88,7 @@ func (s *Store) InsertEvents(events []frictionax.FrictionEvent) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.Prepare(`
 		INSERT INTO friction_events (id, ts, kind, command, subcommand, actor, agent_type, path_bucket, input, error_msg, suggestion)
@@ -136,11 +136,11 @@ func (s *Store) EventCount() (int, error) {
 
 // SummaryResult holds aggregated friction data.
 type SummaryResult struct {
-	TotalEvents int               `json:"total_events"`
-	ByKind      map[string]int    `json:"by_kind"`
-	ByActor     map[string]int    `json:"by_actor"`
-	TopInputs   []TopInput        `json:"top_inputs"`
-	Since       string            `json:"since"`
+	TotalEvents int            `json:"total_events"`
+	ByKind      map[string]int `json:"by_kind"`
+	ByActor     map[string]int `json:"by_actor"`
+	TopInputs   []TopInput     `json:"top_inputs"`
+	Since       string         `json:"since"`
 }
 
 // TopInput represents a frequently seen friction input.

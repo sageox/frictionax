@@ -26,7 +26,7 @@ lint:
 # Format code
 fmt:
 	gofmt -s -w .
-	goimports -w -local github.com/sageox/frictionx .
+	goimports -w -local github.com/sageox/frictionax .
 
 # Run go vet
 vet:

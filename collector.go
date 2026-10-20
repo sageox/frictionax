@@ -28,7 +28,6 @@ type collectorConfig struct {
 
 // frictionCollector manages friction event buffering and transmission.
 type frictionCollector struct {
-	mu           sync.Mutex
 	buffer       *ringbuffer.RingBuffer[FrictionEvent]
 	client       *client
 	catalogCache *catalogCache

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/alecthomas/kong"
+
 	"github.com/sageox/frictionax"
 )
 
