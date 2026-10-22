@@ -367,6 +367,10 @@ def static_run(work: Path) -> None:
         not (work / 'replay.json').exists() and not (work / 'inventory.json').exists(),
         'skip-replay run: nothing executed',
     )
+    check(
+        ('tidy', 'suggest-only') in {(row['pattern'], row['action']) for row in rec['catalog_cleanup']},
+        'skip-replay run: an auto-executing entry that targets a mutating command is flagged without an inventory',
+    )
     check_report(work, 'skip-replay run')
 
 

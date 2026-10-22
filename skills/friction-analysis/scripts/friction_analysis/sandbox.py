@@ -56,6 +56,8 @@ RESERVED_KEYS = (
 )
 # after a timeout kill, how long to keep draining pipes a detached descendant may hold open
 CLEANUP_SECONDS = 2.0
+# help text is small; anything past this is a runaway writer, not signal
+MAX_OUTPUT_BYTES = 4 * 1024 * 1024
 ENV_KEY = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 
 
@@ -154,40 +156,39 @@ class Sandbox:
         popen_kwargs: dict[str, object] = {}
         if os.name == 'posix':
             popen_kwargs['start_new_session'] = True
-        process = subprocess.Popen(
-            self.binary + args,
-            cwd=self.cwd,
-            env=self.env(),
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            **popen_kwargs,  # type: ignore[arg-type]
-        )
-        try:
-            stdout, stderr = process.communicate(timeout=self.timeout)
-            code: int | None = process.returncode
-        except subprocess.TimeoutExpired:
-            kill_tree(process)
-            stdout, stderr = drain(process)
-            code = None
+        # output goes to temporary files, not pipes: a detached descendant that
+        # keeps a pipe open can block a pipe reader (on Windows even the cleanup),
+        # but it cannot stop us from reading a file once the direct child is gone
+        with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
+            process = subprocess.Popen(
+                self.binary + args,
+                cwd=self.cwd,
+                env=self.env(),
+                stdin=subprocess.DEVNULL,
+                stdout=out,
+                stderr=err,
+                **popen_kwargs,  # type: ignore[arg-type]
+            )
+            code: int | None
+            try:
+                code = process.wait(timeout=self.timeout)
+            except subprocess.TimeoutExpired:
+                kill_tree(process)
+                try:
+                    process.wait(timeout=CLEANUP_SECONDS)
+                except subprocess.TimeoutExpired:
+                    pass  # the direct child survived a kill; do not block the analysis on it
+                code = None
+            stdout, stderr = read_capped(out), read_capped(err)
         return RunResult(
             code, self.scrub(stdout.decode('utf-8', 'replace')), self.scrub(stderr.decode('utf-8', 'replace'))
         )
 
 
-def drain(process: subprocess.Popen) -> tuple[bytes, bytes]:
-    """Collect output after a kill, but never wait on pipes a detached descendant still holds."""
-    try:
-        return process.communicate(timeout=CLEANUP_SECONDS)
-    except subprocess.TimeoutExpired:
-        for pipe in (process.stdout, process.stderr):
-            if pipe is not None:
-                pipe.close()
-        try:
-            process.wait(timeout=CLEANUP_SECONDS)
-        except subprocess.TimeoutExpired:
-            pass  # the direct child survived a SIGKILL; do not block the analysis on it
-        return b'', b''
+def read_capped(fh) -> bytes:
+    """Read what the command wrote, bounded so a runaway writer cannot exhaust memory."""
+    fh.seek(0)
+    return fh.read(MAX_OUTPUT_BYTES)
 
 
 def kill_tree(process: subprocess.Popen) -> None:

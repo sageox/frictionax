@@ -159,9 +159,8 @@ def verify_entries(entries: list[dict[str, Any]], records: list[dict[str, Any]],
 
 
 def catalog_cleanup(ctx: Context) -> list[dict[str, Any]]:
-    """Existing entries that can never fire (a real command shadows them) or point nowhere."""
-    if ctx.inventory is None:
-        return []
+    """Existing entries that can never fire (a real command shadows them), point nowhere,
+    or auto-execute a mutating command. Only the shadow and target checks need an inventory."""
     out = []
     for entry in ctx.catalog.data.get('commands', []) or []:
         literal_target = [word for word in entry.get('target', '').split() if '$' not in word]
@@ -174,7 +173,7 @@ def catalog_cleanup(ctx: Context) -> list[dict[str, Any]]:
                 }
             )
             continue
-        if entry.get('has_regex'):
+        if ctx.inventory is None or entry.get('has_regex'):
             continue
         pattern_words = entry.get('pattern', '').split()
         target_words = [word for word in entry.get('target', '').split() if '$' not in word]
