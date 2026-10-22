@@ -210,7 +210,16 @@ def classify_shape(shape: dict[str, Any], ctx: Context) -> dict[str, Any]:
         'unknown_flags': resolution.unknown_flags,
         'latest': latest,
         'still_fails': latest['outcome'] != 'works',
-        'today': ({'source': today.source, 'corrected': today.corrected, 'auto': today.auto} if today else None),
+        'today': (
+            {
+                'source': today.source,
+                'corrected': today.corrected,
+                'auto': today.auto,
+                'pattern': (today.entry or {}).get('pattern', ''),
+            }
+            if today
+            else None
+        ),
         'actors': shape.get('actors', {}),
         'agents': shape.get('agents', {}),
         'versions': shape.get('versions', []),

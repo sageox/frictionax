@@ -1,6 +1,6 @@
 ---
 name: friction-analysis
-description: Analyze CLI friction telemetry (unknown commands and flags that humans and AI coworkers hit) and turn a friction export into root causes, concrete fixes (catalog entries with an AUTO/ASK rule, flags to add, stale strings, tests) and a self-contained HTML report. Use when asked to "analyze friction", make a "friction report", investigate "agent hallucinations in my CLI", "update the friction catalog", or find out "what commands are agents guessing". Works for any CLI; replays every failure against the current binary in a sandbox to separate "still fails" from "fixed since".
+description: Analyze CLI friction telemetry (unknown commands and flags that humans and AI coworkers hit) and turn a friction export into root causes, concrete fixes (catalog entries with an AUTO/ASK rule, flags to add, stale strings, tests) and a self-contained HTML report. Use when asked to "analyze friction", make a "friction report", investigate "agent hallucinations in my CLI", "update the friction catalog", or find out "what commands are agents guessing". Works for any CLI; checks every failure against the current binary through sandboxed --help probes by default, and replays each distinct shape only with --exec and user-approved side-effect switches, to separate "still fails" from "fixed since".
 ---
 
 # Friction analysis
@@ -41,17 +41,24 @@ Formats for the export, an optional per-CLI config, a hand-written inventory and
 - The sandbox always provides: a throwaway `HOME` and XDG dirs, an empty non-git
   working directory, an empty starting environment, HTTP routed to a loopback
   discard port, closed stdin, a timeout that kills the process group. Env files
-  cannot override `HOME`, `PATH`, `TMPDIR` or any `XDG_*`, so a replay can never
-  touch the real home directory. Shapes whose command contains a destructive verb
-  (delete, upgrade, push, login, ...) are never executed.
+  cannot override `HOME`, `PATH`, `TMPDIR`, any `XDG_*` or any proxy variable.
+  **This redirects where a well-behaved CLI reads and writes; it is not a
+  filesystem boundary.** The CLI still runs with the user's permissions and can
+  reach absolute paths, including under the real home directory. Only replay a
+  CLI the user trusts; for anything else, run the skill inside a container or VM.
+- A shape is never executed when its command, its unknown word, or the target an
+  auto-executing catalog entry would rewrite it to contains a mutating verb
+  (create, edit, delete, upgrade, push, login, ...).
 - **Privacy.** Every invocation is reduced to an anonymized shape: command-path
   words and flag names survive, every other token becomes a placeholder
-  (`<path>`, `<id>`, `<n>`, `<text>`, ...). Intermediate files and the report
-  hold only shapes and counts, and the renderer refuses to write a report that
-  contains a home path, email, UUID, secret or URL. Unknown command words are kept
-  verbatim because they are the signal; skim the report before sharing it.
-- Work in a fresh directory of its own (`--work`); the export is copied there
-  read-only. Never put the work directory inside a repository you commit from.
+  (`<path>`, `<id>`, `<n>`, `<text>`, ...). `report.html` holds only shapes and
+  counts, and the renderer refuses to write a report that contains a home path,
+  email, UUID, secret or URL. Unknown command words are kept verbatim because
+  they are the signal; skim the report before sharing it.
+- **The work directory is private.** It holds a read-only copy of the raw export
+  (`input/`), `run.json` with absolute input paths and env var names, and error
+  lines captured during replay. Only `report.html` is meant to be shared. Use a
+  fresh directory (`--work`) outside any repository you commit from.
 
 ## Pipeline
 
@@ -97,6 +104,21 @@ python3 -I <skill>/scripts/analyze.py --work ./friction-work --stages recommend,
 ```
 
 Settings persist in `friction-work/run.json`, so later passes need only `--work`.
+
+### 4. Apply the catalog changes (after the user reviews them)
+
+Show the user the Map changes view (or `catalog-patch.json` plus the cleanup
+list in Implementation notes). Only after they approve, merge it into the
+catalog file:
+
+```bash
+python3 -I <skill>/scripts/analyze.py --work ./friction-work --stages apply \
+  --apply-catalog ./path/to/default_catalog.json
+```
+
+New entries replace same-pattern entries; mechanical cleanup (delete, retarget,
+make suggest-only) is applied; rows marked "review" are left for a human. The
+command prints every change. Then run the CLI's own tests and show the diff.
 
 ## Buckets (ordered rules, first match wins)
 

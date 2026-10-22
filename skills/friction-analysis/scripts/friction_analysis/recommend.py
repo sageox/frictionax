@@ -12,6 +12,7 @@ mutate anything. Everything else is suggest-only.
 
 from __future__ import annotations
 
+import json
 import re
 from collections import Counter, defaultdict
 from typing import Any
@@ -25,6 +26,7 @@ AUTO_CONFIDENCE = 0.9
 ASK_CONFIDENCE = 0.8
 TOKEN_CONFIDENCE = 0.8
 MAPPED_BUCKETS = ('alias', 'catalog-miss', 'bad-fuzzy', 'cli-taught')
+UNSUBSTITUTED = re.compile(r'\$\d')
 
 
 def apply_decisions(records: list[dict[str, Any]], decisions: dict[str, Any]) -> list[str]:
@@ -145,10 +147,11 @@ def verify_entries(entries: list[dict[str, Any]], records: list[dict[str, Any]],
             result = suggest(
                 simulated, ctx.inventory, record['argv'], 'unknown-command', record.get('unknown_word') or ''
             )
-            if (
-                result is not None
-                and result.corrected.split()[: len(entry['target'].split())] == entry['target'].split()
-            ):
+            if result is None or UNSUBSTITUTED.search(result.corrected):
+                # frictionax matches regexes on the normalized input but substitutes captures from the
+                # raw input; when the two differ the CLI would run a literal "$1"
+                continue
+            if result.corrected.split()[: len(entry['target'].split())] == entry['target'].split():
                 landed += 1
         entry['verified'] = landed == len(entry['shapes'])
         if ctx.inventory is not None:
@@ -161,6 +164,16 @@ def catalog_cleanup(ctx: Context) -> list[dict[str, Any]]:
         return []
     out = []
     for entry in ctx.catalog.data.get('commands', []) or []:
+        literal_target = [word for word in entry.get('target', '').split() if '$' not in word]
+        if entry.get('auto_execute') and ctx.config.is_destructive(literal_target):
+            out.append(
+                {
+                    'pattern': entry.get('pattern', ''),
+                    'action': 'suggest-only',
+                    'why': 'it auto-executes a command that mutates state',
+                }
+            )
+            continue
         if entry.get('has_regex'):
             continue
         pattern_words = entry.get('pattern', '').split()
@@ -470,16 +483,16 @@ def expected_outcome(
     entry_by_shape: dict[str, dict[str, Any]],
     vocabulary: dict[str, Any],
     tokens: dict[str, str],
+    demoted: set[str],
 ) -> str:
     bucket = record['bucket']
     entry = entry_by_shape.get(record['key'])
     if bucket == 'fixed':
         today = record.get('today') or {}
-        return (
-            f'auto:{today["corrected"]}'
-            if record['latest'].get('how') == 'corrected' and today.get('corrected')
-            else 'resolves'
-        )
+        if record['latest'].get('how') != 'corrected' or not today.get('corrected'):
+            return 'resolves'
+        # an existing entry the cleanup demotes to suggest-only stops auto-executing
+        return ('suggests:' if today.get('pattern') in demoted else 'auto:') + today['corrected']
     if entry is not None:
         return ('auto:' if entry['mode'] == 'AUTO' else 'suggests:') + entry['target']
     if bucket == 'word-split':
@@ -537,13 +550,15 @@ def run(
     buckets = tally(records)
     entries = catalog_entries(records, ctx)
     entry_by_shape = {key: entry for entry in entries for key in entry['shapes']}
+    cleanup = mark_replaced(catalog_cleanup(ctx), entries)
+    demoted = {row['pattern'] for row in cleanup if row['action'] == 'suggest-only'}
     vocabulary = flag_vocabulary(records, ctx)
     tokens = {token['pattern']: token['target'] for token in vocabulary.get('tokens', [])}
     strings = strings_to_fix(records, refs, ctx)
     fixes = engine_fixes(buckets, records, strings, profile, ctx)
     corpus = []
     for record in records:
-        record['expected'] = expected_outcome(record, entry_by_shape, vocabulary, tokens)
+        record['expected'] = expected_outcome(record, entry_by_shape, vocabulary, tokens, demoted)
         corpus.append(
             {
                 'argv': record['argv'],
@@ -577,7 +592,7 @@ def run(
         'buckets': buckets,
         'shapes': records,
         'catalog_entries': entries,
-        'catalog_cleanup': mark_replaced(catalog_cleanup(ctx), entries),
+        'catalog_cleanup': cleanup,
         'gated': [{'command': name, 'events': count} for name, count in gated_events.most_common()],
         'fuzzy': [
             {'typed': typed, 'suggested': suggested, 'events': count}
@@ -598,3 +613,50 @@ def run(
         'catalog_patch': {'commands': [e['entry'] for e in entries], 'tokens': vocabulary.get('tokens', [])},
     }
     return recommendations, corpus
+
+
+def apply_patch(
+    catalog: dict[str, Any], patch: dict[str, Any], cleanup: list[dict[str, Any]]
+) -> tuple[dict[str, Any], list[str]]:
+    """Merge reviewed proposals into a catalog: new entries replace same-pattern ones, cleanup rows apply.
+
+    Only mechanical cleanup is applied (delete, retarget, suggest-only); rows marked review or fix need
+    a human. Returns the merged catalog and one line per change.
+    """
+    merged = json.loads(json.dumps(catalog))  # deep copy; the caller's data stays untouched
+    commands = merged.setdefault('commands', [])
+    tokens = merged.setdefault('tokens', [])
+    changes = []
+    for row in cleanup:
+        matches = [entry for entry in commands if entry.get('pattern') == row['pattern']]
+        if row.get('replaced_by_entry') or not matches:
+            continue
+        if row['action'] == 'delete':
+            commands[:] = [entry for entry in commands if entry.get('pattern') != row['pattern']]
+            changes.append(f'deleted {row["pattern"]} ({row["why"]})')
+        elif row['action'] == 'retarget' and row.get('target'):
+            for entry in matches:
+                entry['target'] = row['target']
+            changes.append(f'retargeted {row["pattern"]} -> {row["target"]}')
+        elif row['action'] == 'suggest-only':
+            for entry in matches:
+                entry['auto_execute'] = False
+                entry['confidence'] = min(float(entry.get('confidence', ASK_CONFIDENCE)), ASK_CONFIDENCE)
+            changes.append(f'made {row["pattern"]} suggest-only ({row["why"]})')
+    for new in patch.get('commands', []):
+        existing = next((entry for entry in commands if entry.get('pattern') == new['pattern']), None)
+        if existing is not None:
+            existing.update(new)
+            changes.append(f'replaced {new["pattern"]} -> {new["target"]}')
+        else:
+            commands.append(dict(new))
+            changes.append(
+                f'added {new["pattern"]} -> {new["target"]} ({"auto" if new["auto_execute"] else "suggest"})'
+            )
+    for new in patch.get('tokens', []):
+        key = (new['pattern'], new['kind'])
+        if any((token.get('pattern'), token.get('kind')) == key for token in tokens):
+            continue
+        tokens.append(dict(new))
+        changes.append(f'added token {new["pattern"]} -> {new["target"]} (suggest)')
+    return merged, changes

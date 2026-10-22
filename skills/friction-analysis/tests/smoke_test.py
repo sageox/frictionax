@@ -3,12 +3,14 @@
 
     python3 -I skills/friction-analysis/tests/smoke_test.py
 
-Runs the whole pipeline twice on a synthetic export for a fictional CLI named
-`acme`: once against a fake acme binary (inventory from --help, sandboxed exec
-replay, feature-gated inventory, source scan, judgment decisions), and once with
---skip-replay and no binary at all. Asserts the bucket counts, the AUTO rule,
-that no fixture PII reaches any output, that the sandbox was applied, and that
-the report is self-contained with at most 100 visible words per view.
+Runs the whole pipeline on a synthetic export for a fictional CLI named `acme`:
+against a fake acme binary (inventory from --help, sandboxed exec replay,
+feature-gated inventory, source scan, judgment decisions, catalog apply), with
+--skip-replay and no binary at all, and with a hand-written inventory. Asserts the
+bucket counts, the AUTO rule, the replay guards (mutating commands and catalog
+auto-correct targets never run, proxy variables stay reserved, a hung CLI cannot
+stall the run), that no fixture PII reaches any output, and that the report is
+self-contained with at most 100 visible words per view.
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -35,9 +38,14 @@ EXPECTED_BUCKETS = {
     'flag-drift': 6,
     'missing-feature': 2,
     'gated': 2,
-    'fixed': 6,
+    'fixed': 8,
     'noise': 3,
 }
+TOTAL_EVENTS = 53
+# `fake_acme.py follow` hangs and leaves a detached helper holding stdout for 40s; a
+# 2s replay timeout plus bounded cleanup must return long before the helper exits
+HANG_TIMEOUT_SECONDS = 2.0
+HANG_BUDGET_SECONDS = 20.0
 EXPECTED_ENTRIES = {
     ('plan show', 'plan view'): 'AUTO',
     ('skill', 'skills'): 'AUTO',
@@ -75,9 +83,9 @@ def check(condition: bool, message: str) -> None:
         failures.append(message)
 
 
-def analyze(*args: str) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run([sys.executable, '-I', str(ANALYZE), *args], capture_output=True, text=True, timeout=300)
-    if result.returncode != 0:
+def analyze(*args: str, expect_failure: bool = False) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run([sys.executable, '-I', str(ANALYZE), *args], capture_output=True, text=True, timeout=600)
+    if result.returncode != 0 and not expect_failure:
         print(result.stdout, result.stderr, sep='\n')
     return result
 
@@ -198,7 +206,10 @@ def full_run(work: Path) -> None:
         'full run: every proposed entry lands on its target in the frictionax simulation',
     )
     cleanup = {(row['pattern'], row['action']) for row in rec['catalog_cleanup']}
-    check(cleanup == {('plans', 'retarget'), ('skills', 'delete')}, f'full run: catalog cleanup {cleanup}')
+    check(
+        cleanup == {('plans', 'retarget'), ('skills', 'delete'), ('tidy', 'suggest-only')},
+        f'full run: catalog cleanup {cleanup}',
+    )
     check(
         [t['pattern'] + '->' + t['target'] for t in rec['vocabulary']['tokens']] == ['--last->--limit'],
         'full run: --last becomes a token fix',
@@ -221,12 +232,113 @@ def full_run(work: Path) -> None:
         replay.get('login --token <id>', {}).get('result') == 'skipped',
         'full run: destructive command was not executed',
     )
+    check(
+        not any(r.get('exit') == 97 for r in replay.values()) and replay.get('tidy', {}).get('result') == 'skipped',
+        'full run: a catalog auto-correct to a mutating command (tidy -> gc) was not executed',
+    )
+    check(replay.get('update', {}).get('result') == 'skipped', 'full run: a mutating unknown word was not executed')
+    check(replay.get('follow', {}).get('result') == 'timeout', 'full run: the hung command was recorded as a timeout')
     corpus = json.loads((work / 'corpus.json').read_text())
     check(
         len(corpus) == len(classified['shapes']) and all(row['expected'] != 'needs-judgment' for row in corpus),
         'full run: corpus has an expected outcome for every shape',
     )
     check_report(work, 'full run')
+    apply_run(work)
+
+
+def apply_run(work: Path) -> None:
+    """The reviewed apply step merges the patch into a copy of the catalog, never the fixture."""
+    target = work / 'catalog-copy.json'
+    shutil.copyfile(DATA / 'acme-catalog.json', target)
+    refused = analyze('--work', str(work), '--stages', 'apply', expect_failure=True)
+    check(refused.returncode != 0, 'apply: refuses to run without --apply-catalog')
+    result = analyze('--work', str(work), '--stages', 'apply', '--apply-catalog', str(target))
+    check(result.returncode == 0, 'apply: exits 0')
+    merged = json.loads(target.read_text())
+    by_pattern = {entry['pattern']: entry for entry in merged['commands']}
+    check(
+        'skills' not in by_pattern
+        and by_pattern['plans']['target'] == 'plan'
+        and by_pattern['tidy']['auto_execute'] is False
+        and by_pattern[r'^plan show(\s.*)?$']['target'] == r'plan view$1',
+        'apply: entries added, stale entry deleted, dead target retargeted, mutating auto entry demoted',
+    )
+    check(
+        json.loads((DATA / 'acme-catalog.json').read_text()) != merged,
+        'apply: wrote the copy it was given, fixture untouched',
+    )
+
+
+def proxy_run(work: Path) -> None:
+    result = analyze(
+        '--work', str(work), '--export', str(DATA / 'acme-export.csv'), '--cli', 'acme',
+        '--binary', f'{sys.executable} -I {DATA / "fake_acme.py"}', '--exec',
+        '--env-file', str(DATA / 'acme-replay.env'), '--env', 'HTTPS_PROXY=http://proxy.invalid:8080',
+        expect_failure=True,
+    )  # fmt: skip
+    check(
+        result.returncode != 0 and 'owned by the sandbox' in result.stderr and not (work / 'replay.json').exists(),
+        'proxy: an env file cannot reroute the sandbox proxy',
+    )
+
+
+def inventory_run(work: Path, inventory: Path) -> None:
+    """A hand-written inventory never runs anything, so --skip-replay must keep using it on later passes."""
+    result = analyze(
+        '--work', str(work), '--export', str(DATA / 'acme-export.csv'), '--cli', 'acme', '--skip-replay',
+        '--inventory', str(inventory), '--catalog', str(DATA / 'acme-catalog.json'),
+    )  # fmt: skip
+    check(result.returncode == 0, 'hand-written inventory: first pass exits 0')
+    first = json.loads((work / 'recommendations.json').read_text())
+    result = analyze('--work', str(work), '--stages', 'recommend,render')
+    second = json.loads((work / 'recommendations.json').read_text())
+    run = json.loads((work / 'run.json').read_text())
+    check(
+        result.returncode == 0
+        and first['catalog_cleanup'] == second['catalog_cleanup'] != []
+        and 'supplied command inventory' in run['method_line'],
+        'hand-written inventory: the recommend,render pass still uses it',
+    )
+
+
+def unit_checks() -> None:
+    """Small direct checks of behavior that has no natural end-to-end trigger in the fixture."""
+    sys.dont_write_bytecode = True
+    sys.path.insert(0, str(SKILL / 'scripts'))  # trusted: the skill's own modules
+    from friction_analysis.classify import Context
+    from friction_analysis.config import Config
+    from friction_analysis.frictionsim import Catalog
+    from friction_analysis.inventory import Inventory, resolve
+    from friction_analysis.recommend import verify_entries
+    from friction_analysis.sandbox import Sandbox, resolve_binary
+
+    binary = resolve_binary(f'{sys.executable} -I {DATA / "fake_acme.py"}')
+    with Sandbox(binary, {'ACME_TELEMETRY': 'off'}, HANG_TIMEOUT_SECONDS) as sandbox:
+        started = time.monotonic()
+        hung = sandbox.run(['follow'])
+        elapsed = time.monotonic() - started
+    check(
+        hung.exit_code is None and elapsed < HANG_BUDGET_SECONDS,
+        f'unit: a hung CLI whose helper holds stdout returns after the timeout ({elapsed:.1f}s < {HANG_BUDGET_SECONDS:g}s)',
+    )
+
+    inventory = Inventory.from_json(
+        {'cli': 'acme', 'commands': {'': {'children': ['secret']}, 'secret': {'hidden_from_help': True}}}
+    )
+    check(
+        resolve(inventory, ['secret', '--anything']).unknown_flags == [],
+        'unit: a command with unreadable help does not reject its flags',
+    )
+    check(Config().is_destructive(['plan', 'create']), 'unit: create counts as a mutating verb')
+    # frictionax matches regexes on the normalized input but substitutes from the raw input;
+    # an entry that only matches the normalized form leaves a literal $1 and must not verify
+    entry = {'pattern': r'^show (.*) --json$', 'target': 'view $1', 'has_regex': True, 'auto_execute': True,
+             'confidence': 0.9}  # fmt: skip
+    proposals = [{'entry': entry, 'target': 'view', 'typed': 'show', 'shapes': ['k']}]
+    records = [{'key': 'k', 'argv': ['show', '--json', 'list'], 'unknown_word': 'show'}]
+    verify_entries(proposals, records, Context(cli='acme', config=Config(), catalog=Catalog(None, 'acme')))
+    check(proposals[0]['verified'] is False, 'unit: an entry that would run a literal $1 is not verified')
 
 
 def static_run(work: Path) -> None:
@@ -246,7 +358,7 @@ def static_run(work: Path) -> None:
     check(result.returncode == 0, 'skip-replay run: exits 0 without any binary')
     rec = json.loads((work / 'recommendations.json').read_text())
     total = sum(values['events'] for values in rec['buckets'].values())
-    check(total == 51, f'skip-replay run: all 51 events accounted for ({total})')
+    check(total == TOTAL_EVENTS, f'skip-replay run: all {TOTAL_EVENTS} events accounted for ({total})')
     check(
         rec['buckets'].get('word-split', {}).get('events') == 5,
         'skip-replay run: word-split found from error text alone',
@@ -262,6 +374,9 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix='friction-smoke-') as root:
         full_run(Path(root) / 'full')
         static_run(Path(root) / 'static')
+        proxy_run(Path(root) / 'proxy')
+        inventory_run(Path(root) / 'inventory', Path(root) / 'full' / 'inventory.json')
+        unit_checks()
         if '--keep' in sys.argv:  # keep the work directories, e.g. to open the reports
             shutil.copytree(root, sys.argv[sys.argv.index('--keep') + 1], dirs_exist_ok=True)
     print(f'\n{"FAILED" if failures else "PASSED"}: {len(failures)} failing checks')

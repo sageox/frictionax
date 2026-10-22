@@ -46,9 +46,22 @@ DEFAULT_VERB_GROUPS: tuple[tuple[str, ...], ...] = (
     ('info', 'about', 'whoami'),
 )
 
-# a target containing any of these mutates or destroys something: never AUTO, never replayed
+# a command containing any of these creates, changes or destroys something: never AUTO,
+# never replayed (creating and editing count: replay only proves parsing, not effects)
 DEFAULT_DESTRUCTIVE_VERBS = frozenset(
     {
+        'create',
+        'add',
+        'new',
+        'make',
+        'edit',
+        'modify',
+        'change',
+        'set',
+        'write',
+        'rename',
+        'move',
+        'mv',
         'delete',
         'remove',
         'rm',
@@ -142,11 +155,11 @@ def read_json(path: Path) -> Any:
         return json.load(handle)
 
 
-def write_json(path: Path, data: Any) -> None:
+def write_json(path: Path, data: Any, indent: int = 1) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + '.tmp')
     with tmp.open('w', encoding='utf-8') as handle:
-        json.dump(data, handle, indent=1, sort_keys=False, ensure_ascii=False)
+        json.dump(data, handle, indent=indent, sort_keys=False, ensure_ascii=False)
         handle.write('\n')
     os.replace(tmp, path)
 

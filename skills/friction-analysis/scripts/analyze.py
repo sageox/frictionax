@@ -23,15 +23,18 @@ from pathlib import Path
 sys.dont_write_bytecode = True  # never write caches into the installed skill directory
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # trusted: the skill's own scripts
 
-from friction_analysis import classify, normalize, recommend, render, replay  # noqa: E402  # noqa: E402
-from friction_analysis import config as config_module
-from friction_analysis import inventory as inventory_module
-from friction_analysis import refs as refs_module
+# imports follow the sys.path line above on purpose
+from friction_analysis import classify, normalize, recommend, render, replay  # noqa: E402
+from friction_analysis import config as config_module  # noqa: E402
+from friction_analysis import inventory as inventory_module  # noqa: E402
+from friction_analysis import refs as refs_module  # noqa: E402
 from friction_analysis.frictionsim import Catalog  # noqa: E402
 from friction_analysis.sandbox import Sandbox, load_env, resolve_binary, warn  # noqa: E402
 from friction_analysis.util import read_json, read_json_or, write_json  # noqa: E402
 
 STAGES = ('inventory', 'normalize', 'replay', 'refs', 'classify', 'recommend', 'render')
+# writes to the user's catalog, so it never runs by default and needs --apply-catalog
+APPLY_STAGE = 'apply'
 PATH_SETTINGS = ('export', 'inventory', 'catalog', 'source', 'config', 'feature_env_file', 'decisions', 'out')
 
 
@@ -60,7 +63,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         '--feature-env-file', type=Path, help='env that enables feature-gated commands (finds the gated bucket)'
     )
     parser.add_argument('--decisions', type=Path, help='judgment file (default: <work>/decisions.json)')
-    parser.add_argument('--stages', help='comma-separated subset of: ' + ','.join(STAGES))
+    parser.add_argument('--stages', help='comma-separated subset of: ' + ','.join(STAGES) + f' (or {APPLY_STAGE})')
+    parser.add_argument('--apply-catalog', type=Path, help='catalog file the apply stage rewrites (after review)')
     parser.add_argument('--skip-replay', action='store_true', help='never run the binary, not even --help')
     parser.add_argument('--dry-run', action='store_true', help='print the argv each shape would replay, then stop')
     parser.add_argument('--timeout', type=float, help='seconds per invocation (default 10)')
@@ -102,17 +106,19 @@ def need(path: Path, stage: str) -> dict | list:
 def method_lines(run: dict, profile: dict, inventory: inventory_module.Inventory | None) -> tuple[str, str]:
     cli = run['cli']
     version = (inventory.version if inventory else '') or 'the current build'
+    if not version.startswith(cli):
+        version = f'{cli} {version}'  # `acme --version` usually already names the CLI
     shapes = profile.get('shapes', 0)
     if run.get('replay') == 'exec':
         return (
             f'{profile.get("events", 0)} failed invocations, {shapes} distinct shapes, each replayed against {version} in a sandbox.',
             f'Replayed with a throwaway HOME and XDG dirs, an empty non-git working directory, stdin closed, HTTP routed '
             f'to a loopback discard port, a {run["timeout"]:g}s timeout, and the side-effect switches below. Shapes whose '
-            'command contains a destructive verb kept their static outcome.',
+            'command, unknown word or catalog auto-correct target mutates state kept their static outcome.',
         )
     if inventory is not None and inventory.source == 'help':
         return (
-            f'{profile.get("events", 0)} failed invocations, {shapes} distinct shapes, checked against {cli} {version} --help. Nothing else ran.',
+            f'{profile.get("events", 0)} failed invocations, {shapes} distinct shapes, checked against {version} --help. Nothing else ran.',
             f'Outcomes are static: each shape was resolved against the command tree parsed from {cli} --help, run in the sandbox.',
         )
     if inventory is not None:
@@ -132,7 +138,7 @@ def main(argv: list[str]) -> int:
     work.mkdir(parents=True, exist_ok=True)
     run = settings(args)
     stages = [s.strip() for s in (args.stages or ','.join(STAGES)).split(',') if s.strip()]
-    unknown = set(stages) - set(STAGES)
+    unknown = set(stages) - set(STAGES) - {APPLY_STAGE}
     if unknown:
         raise SystemExit(f'unknown stages: {", ".join(sorted(unknown))}')
     cli = run['cli']
@@ -150,6 +156,7 @@ def main(argv: list[str]) -> int:
         if run.get('inventory'):
             inventory = inventory_module.Inventory.from_json(read_json(Path(run['inventory'])))
             inventory.cli = inventory.cli or cli
+            inventory.source = 'file'  # supplied by the user: nothing ran to produce it in this session
         elif binary is not None:
             with Sandbox(binary, user_env, run['timeout']) as sandbox:
                 inventory = inventory_module.build(sandbox, cli, max_nodes=run['max_commands'])
@@ -160,7 +167,8 @@ def main(argv: list[str]) -> int:
                 write_json(work / 'inventory-all.json', inventory_all.to_json())
         if inventory is not None:
             write_json(work / 'inventory.json', inventory.to_json())
-    if inventory is None and (work / 'inventory.json').exists() and not run.get('skip_replay'):
+    hand_written = bool(run.get('inventory'))  # never runs anything, so --skip-replay keeps it
+    if inventory is None and (work / 'inventory.json').exists() and (hand_written or not run.get('skip_replay')):
         inventory = inventory_module.Inventory.from_json(read_json(work / 'inventory.json'))
     if inventory_all is None and (work / 'inventory-all.json').exists() and not run.get('skip_replay'):
         inventory_all = inventory_module.Inventory.from_json(read_json(work / 'inventory-all.json'))
@@ -186,14 +194,14 @@ def main(argv: list[str]) -> int:
             f'switches: {", ".join(sorted(user_env))})'
         )
         with Sandbox(binary, user_env, run['timeout']) as sandbox:
-            replay_results = replay.run(shapes, sandbox, cli, inventory, config, dry_run=args.dry_run)
+            replay_results = replay.run(shapes, sandbox, cli, inventory, config, catalog, dry_run=args.dry_run)
         if args.dry_run:
             return 0
         write_json(work / 'replay.json', replay_results)
         run['replay'] = 'exec'
     elif 'replay' in stages and args.dry_run:
         with Sandbox(binary or ['true'], user_env, run['timeout']) as sandbox:
-            replay.run(shapes, sandbox, cli, inventory, config, dry_run=True)
+            replay.run(shapes, sandbox, cli, inventory, config, catalog, dry_run=True)
         return 0
     if not replay_results:
         run['replay'] = 'static' if inventory is not None else 'none'
@@ -235,6 +243,22 @@ def main(argv: list[str]) -> int:
     if 'render' in stages:
         page = render.render({'cli': cli, 'profile': profile, 'rec': recommendations, 'run': run})
         report_path.write_text(page, encoding='utf-8')
+
+    if APPLY_STAGE in stages:
+        if not args.apply_catalog:
+            raise SystemExit(
+                'the apply stage rewrites a catalog: pass --apply-catalog <path> after the user reviews it'
+            )
+        target = args.apply_catalog.resolve()
+        current = read_json(target) if target.exists() else {'version': '', 'commands': [], 'tokens': []}
+        merged, changes = recommend.apply_patch(
+            current, recommendations['catalog_patch'], recommendations['catalog_cleanup']
+        )
+        write_json(target, merged, indent=2)  # catalogs are hand-reviewed files: conventional indent
+        print(f'applied {len(changes)} changes to {target}')
+        for change in changes:
+            print(f'  {change}')
+        return 0
 
     print_summary(profile, recommendations, report_path, decisions_path)
     return 0

@@ -764,7 +764,7 @@ def notes(data: dict[str, Any]) -> str:
         parts.append(f'<li>{unverified} events were never checked against a binary.</li>')
     if skipped:
         parts.append(
-            f'<li>{skipped} events kept their static outcome (destructive verb, timeout, or a non-parse error).</li>'
+            f'<li>{skipped} events kept their static outcome (mutating verb or auto-correct target, timeout, or a non-parse error).</li>'
         )
     for problem in rec['decision_problems']:
         parts.append(f'<li>Decision file: {esc(problem)}</li>')

@@ -6,6 +6,9 @@ starts from an empty environment instead of inheriting the caller's, routes HTTP
 through a loopback discard port, closes stdin, and kills the whole process group
 on timeout. The CLI-specific switches that disable telemetry, daemons and network
 calls come from the user (``--env`` / ``--env-file``): this module cannot know them.
+
+This redirects where a well-behaved CLI reads and writes. It is not a filesystem
+boundary: the CLI runs with the caller's permissions and can open absolute paths.
 """
 
 from __future__ import annotations
@@ -26,23 +29,33 @@ from pathlib import Path
 DISCARD_URL = 'http://127.0.0.1:9'
 SAFE_PATH = os.pathsep.join(['/usr/bin', '/bin', '/usr/sbin', '/sbin'])
 
-# keys the sandbox owns; a user env that tries to set them is rejected, which is
-# what guarantees a replay can never point at the real HOME
-RESERVED_KEYS = frozenset(
-    {
-        'HOME',
-        'USERPROFILE',
-        'XDG_CONFIG_HOME',
-        'XDG_CACHE_HOME',
-        'XDG_DATA_HOME',
-        'XDG_STATE_HOME',
-        'XDG_RUNTIME_DIR',
-        'TMPDIR',
-        'TMP',
-        'TEMP',
-        'PATH',
-    }
+# keys the sandbox owns; a user env that tries to set them is rejected, so a replay
+# cannot be pointed at the real HOME or routed around the loopback discard proxy
+PROXY_KEYS = frozenset(
+    name
+    for base in ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'FTP_PROXY')
+    for name in (base, base.lower())
 )
+RESERVED_KEYS = (
+    frozenset(
+        {
+            'HOME',
+            'USERPROFILE',
+            'XDG_CONFIG_HOME',
+            'XDG_CACHE_HOME',
+            'XDG_DATA_HOME',
+            'XDG_STATE_HOME',
+            'XDG_RUNTIME_DIR',
+            'TMPDIR',
+            'TMP',
+            'TEMP',
+            'PATH',
+        }
+    )
+    | PROXY_KEYS
+)
+# after a timeout kill, how long to keep draining pipes a detached descendant may hold open
+CLEANUP_SECONDS = 2.0
 ENV_KEY = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 
 
@@ -155,11 +168,26 @@ class Sandbox:
             code: int | None = process.returncode
         except subprocess.TimeoutExpired:
             kill_tree(process)
-            stdout, stderr = process.communicate()
+            stdout, stderr = drain(process)
             code = None
         return RunResult(
             code, self.scrub(stdout.decode('utf-8', 'replace')), self.scrub(stderr.decode('utf-8', 'replace'))
         )
+
+
+def drain(process: subprocess.Popen) -> tuple[bytes, bytes]:
+    """Collect output after a kill, but never wait on pipes a detached descendant still holds."""
+    try:
+        return process.communicate(timeout=CLEANUP_SECONDS)
+    except subprocess.TimeoutExpired:
+        for pipe in (process.stdout, process.stderr):
+            if pipe is not None:
+                pipe.close()
+        try:
+            process.wait(timeout=CLEANUP_SECONDS)
+        except subprocess.TimeoutExpired:
+            pass  # the direct child survived a SIGKILL; do not block the analysis on it
+        return b'', b''
 
 
 def kill_tree(process: subprocess.Popen) -> None:

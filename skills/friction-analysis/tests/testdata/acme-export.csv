@@ -51,3 +51,5 @@ evt-048,2026-09-25T07:50:00Z,unknown-flag,acme login,,agent,agent-gamma,login --
 evt-049,2026-10-03T23:00:00Z,unknown-command,acme,,human,,bogus,"unknown command ""bogus"" for ""acme""",2.3.0
 evt-050,2026-10-04T23:00:00Z,unknown-flag,acme status,,agent,agent-alpha,status --nonexistent-flag,unknown flag: --nonexistent-flag,2.3.0
 evt-051,2026-10-05T23:30:00Z,unknown-command,acme,,agent,agent-beta,/Users/person-b/notes.txt,"unknown command ""/Users/person-b/notes.txt"" for ""acme""",2.3.0
+evt-052,2026-09-27T06:00:00Z,unknown-command,acme,,agent,agent-beta,tidy,"unknown command ""tidy"" for ""acme""",2.1.0
+evt-053,2026-09-29T06:30:00Z,unknown-command,acme,,agent,agent-alpha,follow,"unknown command ""follow"" for ""acme""",2.1.0

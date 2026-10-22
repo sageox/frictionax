@@ -1,9 +1,10 @@
 """Exec replay: run every anonymized shape against the current binary in the sandbox.
 
 This is the only stage that executes real commands, so it is opt-in (`--exec`)
-and requires an env file of side-effect switches the user approved. Shapes whose
-resolved command (or auto-correct target) contains a destructive verb are never
-executed; they keep their static outcome.
+and requires an env file of side-effect switches the user approved. A shape is
+never executed when its resolved command, its unknown word, or the target an
+auto-executing catalog entry would rewrite it to contains a mutating verb; it
+keeps its static outcome.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ import re
 from typing import Any
 
 from .config import Config
+from .frictionsim import Catalog
 from .inventory import Inventory, resolve
 from .sandbox import Sandbox, warn
 from .util import ARG, DATE, DURATION, EMAIL, ID, NUMBER, PATH, TEXT, URL, parse_error
@@ -101,11 +103,21 @@ def strip_cli(command: str, cli: str) -> str:
     return ' '.join(words)
 
 
-def denied(shape: dict[str, Any], inventory: Inventory | None, config: Config) -> bool:
+def denied(shape: dict[str, Any], inventory: Inventory | None, config: Config, catalog: Catalog | None) -> bool:
+    """Skip a shape whose command, unknown word, or catalog auto-correct target mutates anything."""
+    words = [token for token in shape['argv'] if not token.startswith('-')]
     if inventory is not None:
         resolution = resolve(inventory, shape['argv'], shape.get('joined', 0), shape.get('joined_at', 0))
-        return config.is_destructive(resolution.path)
-    return config.is_destructive([token for token in shape['argv'] if not token.startswith('-')])
+        words = resolution.path + (resolution.unknown_word or '').split()
+    if config.is_destructive(words):
+        return True
+    if catalog is not None:
+        text = ' '.join(shape['argv'])
+        entry = catalog.lookup(text)
+        # any auto-executing entry counts, whatever its confidence: the CLI decides, not us
+        if entry is not None and entry.get('auto_execute'):
+            return config.is_destructive(catalog.apply(entry, text).split())
+    return False
 
 
 def run(
@@ -114,14 +126,15 @@ def run(
     cli: str,
     inventory: Inventory | None,
     config: Config,
+    catalog: Catalog | None,
     dry_run: bool = False,
 ) -> dict[str, dict[str, Any]]:
     results: dict[str, dict[str, Any]] = {}
     executed = 0
     for shape in shapes:
         argv = concrete_argv(shape)
-        if denied(shape, inventory, config):
-            results[shape['key']] = {'result': 'skipped', 'reason': 'destructive verb'}
+        if denied(shape, inventory, config, catalog):
+            results[shape['key']] = {'result': 'skipped', 'reason': 'mutating verb'}
             continue
         if dry_run:
             print(' '.join(json.dumps(arg) if ' ' in arg else arg for arg in [cli] + argv))

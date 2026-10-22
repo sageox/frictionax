@@ -103,6 +103,8 @@ class Node:
         return self.aliases.get(word)
 
     def has_flag(self, token: str) -> bool:
+        if self.hidden_from_help:
+            return True  # its help was unreadable, so its flags are unknown, not absent
         name = token.split('=', 1)[0]
         if name in ('--help', '-h'):
             return True
@@ -124,6 +126,7 @@ class Node:
             'flags': self.flags,
             'shorts': self.shorts,
             'accepts_args': self.accepts_args,
+            'hidden_from_help': self.hidden_from_help,
         }
 
 
@@ -178,6 +181,7 @@ class Inventory:
                 flags=dict(flags),
                 shorts=dict(raw.get('shorts', {})),
                 accepts_args=bool(raw.get('accepts_args', False)),
+                hidden_from_help=bool(raw.get('hidden_from_help', False)),
             )
         nodes.setdefault('', Node(path=''))
         # children listed only implicitly (a 'plan list' key without 'list' under 'plan')

@@ -5,12 +5,19 @@ It prints cobra-shaped help and errors, suggests corrections the way frictionax
 does (a tiny catalog, then Levenshtein over command paths), hides a feature-gated
 `cart` group unless ACME_FEATURE_CART=1, and refuses to run anything outside the
 replay sandbox, which is how the smoke test proves the sandbox is applied.
+
+Two commands exist to test the replay guards: `gc` refuses to run (exit 97), so
+any mutating command that slips past the deny check is visible, and `follow`
+never returns and leaves a detached helper holding stdout open (it exits on its
+own after a short sleep), so timeout cleanup that waits for pipe EOF would hang.
 """
 
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 GLOBAL_FLAGS = {'--verbose': False}
@@ -22,6 +29,7 @@ TREE: dict[str, dict] = {
     'login': {'short': 'Log in', 'flags': {'--token': True}},
     'upgrade': {'short': 'Upgrade acme', 'flags': {}},
     'gc': {'short': 'Reclaim disk space (deletes caches)', 'flags': {'--force': False}},
+    'follow': {'short': 'Stream new events until interrupted', 'flags': {}},
     'log': {'short': 'Record a note', 'flags': {'--content': True, '--json': False}},
     'plan': {'short': 'Manage plans', 'flags': {}},
     'plan list': {
@@ -39,7 +47,7 @@ TREE: dict[str, dict] = {
     'cart': {'short': 'Shopping cart (preview)', 'flags': {}, 'feature': 'ACME_FEATURE_CART'},
     'cart list': {'short': 'List cart items', 'flags': {}, 'feature': 'ACME_FEATURE_CART'},
 }
-CATALOG = {'stats': ('status', True), 'plans': ('plan-list', True)}
+CATALOG = {'stats': ('status', True), 'plans': ('plan-list', True), 'tidy': ('gc', True)}
 
 
 def enabled(path: str) -> bool:
@@ -168,6 +176,13 @@ def main(args: list[str]) -> int:
     if children(path):
         print(help_text(path), end='')
         return 0
+    if path == 'gc':
+        print('Error: gc executed during a replay; the deny check let a mutating command through', file=sys.stderr)
+        return 97
+    if path == 'follow':
+        # a detached helper inherits stdout, so the pipe stays open after this process is killed
+        subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(40)'], start_new_session=True)
+        time.sleep(120)
     print('ok')
     return 0
 
