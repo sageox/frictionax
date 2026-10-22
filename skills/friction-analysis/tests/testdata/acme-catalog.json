@@ -1,0 +1,12 @@
+{
+  "version": "2026.09.1",
+  "commands": [
+    {"pattern": "stats", "target": "status", "has_regex": false, "auto_execute": true, "confidence": 0.95, "count": 12, "description": "Typo: stats -> status"},
+    {"pattern": "plans", "target": "plan-list", "has_regex": false, "auto_execute": true, "confidence": 0.9, "count": 4, "description": "Old name: plans -> plan-list"},
+    {"pattern": "skills", "target": "skills list", "has_regex": false, "auto_execute": true, "confidence": 0.9, "count": 2, "description": "Bare group lists its items"},
+    {"pattern": "tidy", "target": "gc", "has_regex": false, "auto_execute": true, "confidence": 0.95, "count": 1, "description": "tidy -> gc"}
+  ],
+  "tokens": [
+    {"pattern": "--jsno", "target": "--json", "kind": "unknown-flag", "count": 3, "confidence": 0.9}
+  ]
+}

@@ -3,3 +3,7 @@
 .dolt/
 *.db
 .beads-credential-key
+
+# python tooling caches from the friction-analysis skill
+.ruff_cache/
+__pycache__/

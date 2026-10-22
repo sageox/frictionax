@@ -1,0 +1,8 @@
+{
+  "decisions": {
+    "update": {"bucket": "alias", "target": "upgrade", "reason": "agents mean the self-upgrade command"},
+    "repo": {"bucket": "missing-feature", "reason": "no repository command exists; agents expect one"},
+    "repo list": {"bucket": "missing-feature", "reason": "no repository command exists; agents expect one"},
+    "<path>": {"bucket": "noise", "reason": "a file path passed where a command belongs"}
+  }
+}

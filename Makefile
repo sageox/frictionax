@@ -1,4 +1,4 @@
-.PHONY: all build test test-verbose test-short lint fmt vet check coverage clean help
+.PHONY: all build test test-verbose test-short test-skill lint fmt vet check coverage clean help
 
 # Default target
 all: check
@@ -18,6 +18,10 @@ test-verbose:
 # Run short tests only (skip long-running tests)
 test-short:
 	gotestsum --format=testname -- -race -short ./...
+
+# Smoke-test the friction-analysis skill (Python 3 stdlib only)
+test-skill:
+	python3 -I skills/friction-analysis/tests/smoke_test.py
 
 # Run linting
 lint:
@@ -54,6 +58,7 @@ help:
 	@echo "  test         - Run tests with race detection"
 	@echo "  test-verbose - Run tests with verbose output"
 	@echo "  test-short   - Run short tests only"
+	@echo "  test-skill   - Smoke-test the friction-analysis skill"
 	@echo "  lint         - Run golangci-lint"
 	@echo "  fmt          - Format code with gofmt and goimports"
 	@echo "  vet          - Run go vet"
