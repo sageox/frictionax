@@ -1,0 +1,53 @@
+id,timestamp,kind,command,subcommand,actor,agent_type,input_redacted,error_msg,client_version
+evt-001,2026-10-02T14:03:10.120Z,unknown-command,acme,,agent,agent-alpha,plan list --help,"unknown command ""plan list"" for ""acme""",2.3.0
+evt-002,2026-10-02T14:03:10.410Z,unknown-command,acme,,agent,agent-alpha,session list --help,"unknown command ""session list"" for ""acme""",2.3.0
+evt-003,2026-10-09T09:12:44.050Z,unknown-command,acme,,agent,agent-beta,plan list --help,"unknown command ""plan list"" for ""acme""",2.3.0
+evt-004,2026-10-09T09:12:44.400Z,unknown-command,acme,,agent,agent-beta,session list --help,"unknown command ""session list"" for ""acme""",2.3.0
+evt-005,2026-10-11T16:00:00.000Z,unknown-command,acme,,agent,agent-gamma,plan list --help,"unknown command ""plan list"" for ""acme""",2.3.0
+evt-006,2026-09-24T10:00:00Z,unknown-command,acme,,agent,agent-beta,notes sync,"unknown command ""notes"" for ""acme""",2.2.0
+evt-007,2026-10-01T10:05:00Z,unknown-command,acme,,agent,agent-beta,notes sync,"unknown command ""notes"" for ""acme""",2.3.0
+evt-008,2026-10-12T11:15:00Z,unknown-command,acme,,agent,agent-alpha,notes sync,"unknown command ""notes"" for ""acme""",2.3.0
+evt-009,2026-10-03T08:00:00Z,unknown-flag,acme log,,agent,agent-alpha,log --role user --content remember to email person-a@example.com about the deploy,unknown flag: --role,2.3.0
+evt-010,2026-10-04T08:30:00Z,unknown-flag,acme log,,agent,agent-gamma,log --role assistant --content Summarized the release checklist,unknown flag: --role,2.3.0
+evt-011,2026-09-26T12:00:00Z,unknown-flag,acme plan list,,agent,agent-alpha,plan list --limit 5,unknown flag: --limit,2.2.0
+evt-012,2026-09-29T12:00:00Z,unknown-flag,acme plan list,,agent,agent-alpha,plan list --limit 5,unknown flag: --limit,2.2.0
+evt-013,2026-10-05T12:00:00Z,unknown-flag,acme plan list,,agent,agent-alpha,plan list --limit 10,unknown flag: --limit,2.3.0
+evt-014,2026-10-07T12:00:00Z,unknown-flag,acme plan list,,agent,agent-gamma,plan list --limit 5,unknown flag: --limit,2.3.0
+evt-015,2026-10-13T12:00:00Z,unknown-flag,acme plan list,,agent,agent-gamma,plan list --limit 20,unknown flag: --limit,2.3.0
+evt-016,2026-09-30T09:00:00Z,unknown-command,acme,,agent,agent-alpha,stats --json,"unknown command ""stats"" for ""acme""",2.3.0
+evt-017,2026-10-06T09:00:00Z,unknown-command,acme,,agent,agent-beta,stats --json,"unknown command ""stats"" for ""acme""",2.3.0
+evt-018,2026-10-08T09:30:00Z,unknown-command,acme,,agent,agent-beta,plans,"unknown command ""plans"" for ""acme""",2.3.0
+evt-019,2026-10-10T09:30:00Z,unknown-command,acme,,agent,agent-gamma,plans,"unknown command ""plans"" for ""acme""",2.3.0
+evt-020,2026-10-01T15:00:00Z,unknown-command,acme,,agent,agent-alpha,mcp,"unknown command ""mcp"" for ""acme""",2.3.0
+evt-021,2026-10-14T15:00:00Z,unknown-command,acme,,agent,agent-gamma,mcp,"unknown command ""mcp"" for ""acme""",2.3.0
+evt-022,2026-09-22T13:00:00Z,unknown-command,acme plan,,agent,agent-alpha,plan show my-plan,"unknown command ""show"" for ""acme plan""",2.2.0
+evt-023,2026-09-25T13:00:00Z,unknown-command,acme plan,,agent,agent-beta,plan show my-plan --json,"unknown command ""show"" for ""acme plan""",2.2.0
+evt-024,2026-10-02T13:00:00Z,unknown-command,acme plan,,agent,agent-alpha,plan show q3-roadmap,"unknown command ""show"" for ""acme plan""",2.3.0
+evt-025,2026-10-09T13:00:00Z,unknown-command,acme plan,,agent,agent-gamma,plan show my-plan,"unknown command ""show"" for ""acme plan""",2.3.0
+evt-026,2026-10-12T13:30:00Z,unknown-command,acme plan,,agent,agent-alpha,"plan show Write a plan for the billing page
+that handles retries and refunds","unknown command ""show"" for ""acme plan""",2.3.0
+evt-027,2026-09-27T14:00:00Z,unknown-command,acme,,agent,agent-beta,skill list,"unknown command ""skill"" for ""acme""",2.2.0
+evt-028,2026-10-11T14:00:00Z,unknown-command,acme,,agent,agent-alpha,skill list,"unknown command ""skill"" for ""acme""",2.3.0
+evt-029,2026-10-05T17:00:00Z,unknown-command,acme session,,human,,session statu,"unknown command ""statu"" for ""acme session""",2.3.0
+evt-030,2026-10-06T17:30:00Z,unknown-flag,acme plan,,agent,agent-beta,plan --list,unknown flag: --list,2.3.0
+evt-031,2026-10-02T18:00:00Z,unknown-command,acme,,agent,agent-gamma,update,"unknown command ""update"" for ""acme""",2.3.0
+evt-032,2026-10-13T18:00:00Z,unknown-command,acme,,agent,agent-alpha,update,"unknown command ""update"" for ""acme""",2.3.0
+evt-033,2026-10-03T19:00:00Z,unknown-flag,acme plan list,,agent,agent-alpha,plan list --since 7d,unknown flag: --since,2.3.0
+evt-034,2026-10-10T19:00:00Z,unknown-flag,acme plan list,,agent,agent-beta,plan list --since 30d,unknown flag: --since,2.3.0
+evt-035,2026-10-04T19:30:00Z,unknown-flag,acme session list,,agent,agent-gamma,session list --until 2026-10-01,unknown flag: --until,2.3.0
+evt-036,2026-10-06T20:00:00Z,unknown-flag,acme session list,,agent,agent-alpha,session list --last 3,unknown flag: --last,2.3.0
+evt-037,2026-10-12T20:00:00Z,unknown-flag,acme session list,,agent,agent-beta,session list --last 3,unknown flag: --last,2.3.0
+evt-038,2026-10-07T20:30:00Z,unknown-flag,acme session list,,agent,agent-alpha,session list --limit 5 --team tm_8f3k2j9x01,unknown flag: --team,2.3.0
+evt-039,2026-10-08T21:00:00Z,unknown-command,acme,,agent,agent-beta,repo,"unknown command ""repo"" for ""acme""",2.3.0
+evt-040,2026-10-09T21:00:00Z,unknown-command,acme,,agent,agent-beta,repo list,"unknown command ""repo"" for ""acme""",2.3.0
+evt-041,2026-10-01T22:00:00Z,unknown-command,acme,,agent,agent-alpha,cart list,"unknown command ""cart"" for ""acme""",2.3.0
+evt-042,2026-10-15T22:00:00Z,unknown-command,acme,,agent,agent-gamma,cart list,"unknown command ""cart"" for ""acme""",2.3.0
+evt-043,2026-09-21T07:00:00Z,unknown-command,acme plan,,agent,agent-alpha,plan lint --file notes.md,"unknown command ""lint"" for ""acme plan""",2.1.0
+evt-044,2026-09-22T07:00:00Z,unknown-command,acme plan,,agent,agent-beta,plan lint --file notes.md,"unknown command ""lint"" for ""acme plan""",2.1.0
+evt-045,2026-09-23T07:00:00Z,unknown-command,acme plan,,agent,agent-gamma,plan lint --file draft.md,"unknown command ""lint"" for ""acme plan""",2.1.0
+evt-046,2026-09-28T07:30:00Z,unknown-command,acme,,agent,agent-alpha,stats,"unknown command ""stats"" for ""acme""",2.1.0
+evt-047,2026-09-24T07:45:00Z,unknown-command,acme plan,,agent,agent-beta,plan view /Users/person-a/src/vacation-2023/plan.md,"unknown command ""view"" for ""acme plan""",2.1.0
+evt-048,2026-09-25T07:50:00Z,unknown-flag,acme login,,agent,agent-gamma,login --token AKIAIOSFODNN7EXAMPLE,unknown flag: --token,2.1.0
+evt-049,2026-10-03T23:00:00Z,unknown-command,acme,,human,,bogus,"unknown command ""bogus"" for ""acme""",2.3.0
+evt-050,2026-10-04T23:00:00Z,unknown-flag,acme status,,agent,agent-alpha,status --nonexistent-flag,unknown flag: --nonexistent-flag,2.3.0
+evt-051,2026-10-05T23:30:00Z,unknown-command,acme,,agent,agent-beta,/Users/person-b/notes.txt,"unknown command ""/Users/person-b/notes.txt"" for ""acme""",2.3.0

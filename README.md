@@ -164,6 +164,20 @@ go run github.com/sageox/frictionax/cmd/friction-server@latest --port=8080 --db=
 | `/api/v1/friction/catalog` | GET/PUT | Manage catalog |
 | `/dashboard` | GET | HTML dashboard |
 
+## Analyze friction with your AI coworker
+
+Install the `friction-analysis` skill for Claude Code, Codex, Cursor and other coding agents:
+
+```bash
+npx skills add sageox/frictionax -g
+```
+
+Hand it a friction export and your CLI. It checks every failure against your current build in a sandbox (help probes by default; full replay only with switches you approve), sorts each one into a root cause (the CLI's own stale hints, shell word-splitting, catalog misses, flag drift between sibling commands, missing aliases), and writes a self-contained HTML report with the catalog entries, flags, string fixes and tests that would close each gap.
+
+```text
+Analyze friction-export.csv for the acme CLI (binary: ./bin/acme, catalog: cmd/acme/default_catalog.json).
+```
+
 ## Agent output
 
 FrictionAX formats output differently for agents vs humans:

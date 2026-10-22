@@ -1,0 +1,5 @@
+{
+  "comment": "Analysis config for the fictional acme CLI used by the smoke test.",
+  "free_text_flags": ["--content"],
+  "id_patterns": ["^tm_[a-z0-9]+$"]
+}
